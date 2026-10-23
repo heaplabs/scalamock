@@ -127,8 +127,8 @@ lazy val `scalamock-specs2-5` = crossProject(JSPlatform, JVMPlatform, NativePlat
 lazy val `scalamock-scalatest` = crossProject(JSPlatform, JVMPlatform, NativePlatform)
   .in(file("scalatest"))
   .settings(
-    name := "scalamock-scalatest",
     commonSettings,
+    name := "scalamock-scalatest", // after commonSettings, whose coreDefaultSettings reset it (heaplabs fork)
     crossScalaSettings,
     libraryDependencies += scalatest.value
   )
