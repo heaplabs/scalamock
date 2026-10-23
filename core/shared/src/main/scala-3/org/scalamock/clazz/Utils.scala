@@ -184,12 +184,11 @@ private[scalamock] class Utils(using val quotes: Quotes):
             !sym.name.contains("$default$") &&
             !sym.hasAnnotation(TypeRepr.of[scala.deprecatedOverriding].typeSymbol)
         )
-        .zipWithIndex
-        .map((sym, idx) => MockableDefinition(idx, sym, tpe))
+        .map(sym => MockableDefinition(sym, tpe))
 
       val vals = tpe.typeSymbol.fieldMembers
         .filter(_.flags.is(Flags.Deferred))
-        .map(sym => MockableDefinition(0, sym, tpe))
+        .map(sym => MockableDefinition(sym, tpe))
       methods ++ vals
 
   extension (tpe: TypeRepr)
@@ -202,9 +201,16 @@ private[scalamock] class Utils(using val quotes: Quotes):
           case other                        => (argTypesAcc.reverse.flatten, other)
       loop(tpe, Nil, TypeRepr.of[Nothing])
 
-  case class MockableDefinition(idx: Int, symbol: Symbol, ownerTpe: TypeRepr):
-    val mockValName = s"mock$$${symbol.name}$$$idx"
-    val stubValName = s"stub$$${symbol.name}$$$idx"
+  case class MockableDefinition(symbol: Symbol, ownerTpe: TypeRepr):
+    // Keyed by the member's erased signature rather than its position among the type's members.
+    // That position follows the compiler's name hashes, which differ between compiler runs, so a mock
+    // class and an expectation compiled in different runs (incremental compilation, or a mock created
+    // in one module and used in another) would otherwise look for different field names.
+    private val signatureKey: String =
+      val signature = symbol.signature
+      Integer.toUnsignedString((signature.paramSigs.mkString(",") + ")" + signature.resultSig).hashCode, 36)
+    val mockValName = s"mock$$${symbol.name}$$$signatureKey"
+    val stubValName = s"stub$$${symbol.name}$$$signatureKey"
     val tpe = ownerTpe.memberType(symbol)
     val (rawTypes, rawResType) = tpe.widen.collectTypes
 
