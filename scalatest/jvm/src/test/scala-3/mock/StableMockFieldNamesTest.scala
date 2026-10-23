@@ -33,6 +33,15 @@ trait Overloads {
   def keep(x: String): String
 }
 
+// "Aa" and "BB" have the same String.hashCode, so these signatures collide under a hash of the signature.
+class Aa
+class BB
+
+trait CollidingOverloads {
+  def keep(x: Aa): String
+  def keep(x: BB): String
+}
+
 class StableMockFieldNamesTest extends AnyFunSpec with MockFactory with Matchers {
 
   private def fieldsFor(method: String, m: AnyRef): List[String] =
@@ -48,9 +57,16 @@ class StableMockFieldNamesTest extends AnyFunSpec with MockFactory with Matchers
   }
 
   it("gives each overload its own mock function") {
-    val overloads = fieldsFor("keep", mock[Overloads])
-    overloads should have size 2
-    overloads should contain(fieldsFor("keep", mock[OneMethod]).head)
+    fieldsFor("keep", mock[Overloads]) shouldBe List("mock$keep$0", "mock$keep$1")
+  }
+
+  it("keeps overloads apart even when their signatures hash alike") {
+    val m = mock[CollidingOverloads]
+    fieldsFor("keep", m) should have size 2
+    (m.keep(_: Aa)).expects(*).returning("aa")
+    (m.keep(_: BB)).expects(*).returning("bb")
+    m.keep(new Aa) shouldBe "aa"
+    m.keep(new BB) shouldBe "bb"
   }
 
   it("still finds each overload's mock function from an expectation") {
